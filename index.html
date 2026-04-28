@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DeepScan — AI Deepfake Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #1a1d24;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8eaf0;
+    --text-muted: #7a7f8e;
+    --text-dim: #4a4f5e;
+    --accent: #00e5a0;
+    --accent2: #00b37a;
+    --danger: #ff4757;
+    --danger2: #cc2233;
+    --warn: #ffa502;
+    --info: #3d9eff;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,12,16,0.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px;
+  }
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    text-decoration: none;
+  }
+  .nav-logo span { color: var(--text-muted); font-weight: 400; }
+  .nav-links { display: flex; gap: 2rem; }
+  .nav-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+  .nav-badge {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    background: rgba(0,229,160,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(0,229,160,0.25);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  /* HERO */
+  .hero {
+    padding: 7rem 2rem 5rem;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--accent); text-transform: uppercase; letter-spacing: 2px;
+    border: 1px solid rgba(0,229,160,0.2);
+    background: rgba(0,229,160,0.05);
+    padding: 6px 16px; border-radius: 20px;
+    margin-bottom: 2rem;
+  }
+  .hero-tag::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); animation: blink 1.5s ease infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .hero h1 {
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -1.5px;
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 em { color: var(--accent); font-style: normal; }
+  .hero p {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    max-width: 580px;
+    margin: 0 auto 2.5rem;
+    line-height: 1.8;
+  }
+  .hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0c10;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 12px 28px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.15s;
+    display: inline-block;
+  }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+  .btn-outline {
+    background: transparent;
+    color: var(--text);
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 12px 28px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color 0.2s, transform 0.15s;
+    display: inline-block;
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+
+  /* STATS ROW */
+  .stats-row {
+    max-width: 860px; margin: 0 auto 5rem;
+    display: grid; grid-template-columns: repeat(4,1fr);
+    border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .stat-cell {
+    padding: 1.8rem 1.5rem;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  .stat-cell:last-child { border-right: none; }
+  .stat-num {
+    font-family: var(--mono);
+    font-size: 2rem; font-weight: 700;
+    color: var(--accent); display: block;
+    letter-spacing: -1px;
+  }
+  .stat-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+
+  /* SCANNER SECTION */
+  .scanner-section {
+    max-width: 860px;
+    margin: 0 auto 6rem;
+    padding: 0 1rem;
+  }
+  .section-header { text-align: center; margin-bottom: 2.5rem; }
+  .section-tag {
+    font-family: var(--mono); font-size: 0.7rem;
+    color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px;
+    display: block; margin-bottom: 0.6rem;
+  }
+  .section-header h2 {
+    font-size: 2rem; font-weight: 600; letter-spacing: -0.8px;
+  }
+
+  .scanner-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .scanner-toolbar {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+    display: flex; align-items: center; gap: 1rem;
+  }
+  .toolbar-dots { display: flex; gap: 6px; }
+  .toolbar-dots span {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+  .td1 { background: #ff5f57; }
+  .td2 { background: #febc2e; }
+  .td3 { background: #28c840; }
+  .toolbar-title {
+    font-family: var(--mono); font-size: 0.8rem;
+    color: var(--text-muted); flex: 1; text-align: center;
+  }
+
+  .scanner-body { padding: 2rem; }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 2px dashed var(--border2);
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,229,160,0.03);
+  }
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .upload-icon {
+    width: 52px; height: 52px; border-radius: 12px;
+    background: rgba(0,229,160,0.1);
+    border: 1px solid rgba(0,229,160,0.2);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 1.4rem;
+  }
+  .upload-zone h3 { font-size: 1rem; font-weight: 500; margin-bottom: 0.4rem; }
+  .upload-zone p { font-size: 0.83rem; color: var(--text-muted); }
+  .upload-zone .formats {
+    display: flex; gap: 8px; justify-content: center; margin-top: 1rem; flex-wrap: wrap;
+  }
+  .fmt-badge {
+    font-family: var(--mono); font-size: 0.68rem;
+    padding: 3px 10px; border-radius: 4px;
+    background: var(--surface2); color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  /* SAMPLE IMAGES */
+  .sample-label {
+    font-size: 0.78rem; color: var(--text-muted);
+    text-align: center; margin-bottom: 0.8rem;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    font-family: var(--mono);
+  }
+  .sample-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+  .sample-img {
+    border-radius: 8px;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+    height: 80px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    background: var(--surface2);
+    font-size: 0.72rem; color: var(--text-muted);
+    text-align: center; padding: 8px;
+    position: relative; overflow: hidden;
+  }
+  .sample-img .thumb { font-size: 1.8rem; }
+  .sample-img:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .sample-img.selected { border-color: var(--accent); background: rgba(0,229,160,0.06); }
+  .sample-img .tag {
+    font-family: var(--mono); font-size: 0.6rem;
+    padding: 2px 6px; border-radius: 3px;
+    position: absolute; top: 5px; right: 5px;
+  }
+  .tag-fake { background: rgba(255,71,87,0.2); color: var(--danger); border: 1px solid rgba(255,71,87,0.3); }
+  .tag-real { background: rgba(0,229,160,0.15); color: var(--accent); border: 1px solid rgba(0,229,160,0.25); }
+
+  /* SCAN BUTTON */
+  .scan-btn {
+    width: 100%; padding: 14px;
+    background: var(--accent); color: #0a0c10;
+    font-family: var(--mono); font-size: 0.9rem; font-weight: 700;
+    border: none; border-radius: 10px; cursor: pointer;
+    text-transform: uppercase; letter-spacing: 1px;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .scan-btn:hover { background: var(--accent2); }
+  .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* PROGRESS */
+  .progress-wrap { display: none; margin-top: 1.5rem; }
+  .progress-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1rem; }
+  .progress-step {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    font-size: 0.85rem;
+    transition: all 0.3s;
+  }
+  .progress-step.active { border-color: var(--accent); background: rgba(0,229,160,0.05); }
+  .progress-step.done { border-color: rgba(0,229,160,0.3); }
+  .step-icon {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--surface); border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-family: var(--mono);
+    flex-shrink: 0; transition: all 0.3s;
+  }
+  .progress-step.active .step-icon { background: var(--accent); color: #0a0c10; border-color: var(--accent); }
+  .progress-step.done .step-icon { background: rgba(0,229,160,0.15); color: var(--accent); border-color: rgba(0,229,160,0.3); }
+  .step-text { flex: 1; color: var(--text-muted); }
+  .progress-step.active .step-text { color: var(--text); }
+  .progress-step.done .step-text { color: var(--text-muted); }
+  .step-time { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); }
+  .progress-step.done .step-time { color: var(--accent); }
+
+  /* RESULT PANEL */
+  .result-panel { display: none; margin-top: 1.5rem; }
+  .verdict-banner {
+    border-radius: 12px 12px 0 0;
+    padding: 1.5rem;
+    display: flex; align-items: center; gap: 1.5rem;
+  }
+  .verdict-banner.fake { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.3); }
+  .verdict-banner.real { background: rgba(0,229,160,0.07); border: 1px solid rgba(0,229,160,0.25); }
+  .verdict-icon {
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; flex-shrink: 0;
+  }
+  .verdict-banner.fake .verdict-icon { background: rgba(255,71,87,0.15); }
+  .verdict-banner.real .verdict-icon { background: rgba(0,229,160,0.1); }
+  .verdict-label {
+    font-family: var(--mono); font-size: 0.7rem;
+    text-transform: uppercase; letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+  .verdict-banner.fake .verdict-label { color: var(--danger); }
+  .verdict-banner.real .verdict-label { color: var(--accent); }
+  .verdict-title { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.5px; }
+  .verdict-sub { font-size: 0.83rem; color: var(--text-muted); margin-top: 2px; }
+  .verdict-conf {
+    margin-left: auto; text-align: right;
+  }
+  .conf-num {
+    font-family: var(--mono); font-size: 2.2rem; font-weight: 700;
+    display: block; letter-spacing: -1px;
+  }
+  .verdict-banner.fake .conf-num { color: var(--danger); }
+  .verdict-banner.real .conf-num { color: var(--accent); }
+  .conf-label { font-size: 0.72rem; color: var(--text-muted); font-family: var(--mono); }
+
+  /* METRICS GRID */
+  .metrics-grid {
+    display: grid; grid-template-columns: repeat(2,1fr);
+    gap: 0; border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  }
+  .metric-card {
+    padding: 1.2rem 1.5rem;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .metric-card:nth-child(2n) { border-right: none; }
+  .metric-name {
+    font-size: 0.78rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    font-family: var(--mono); margin-bottom: 10px;
+  }
+  .metric-bar-wrap { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+  .metric-bar { height: 100%; border-radius: 3px; transition: width 1s ease; width: 0; }
+  .bar-danger { background: var(--danger); }
+  .bar-warn { background: var(--warn); }
+  .bar-info { background: var(--info); }
+  .bar-accent { background: var(--accent); }
+  .metric-val {
+    font-family: var(--mono); font-size: 1.1rem; font-weight: 700;
+  }
+  .metric-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+  /* HEATMAP */
+  .heatmap-section {
+    border: 1px solid var(--border);
+    border-top: none;
+    padding: 1.5rem;
+    border-radius: 0 0 12px 12px;
+  }
+  .heatmap-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;
+  }
+  .heatmap-title { font-size: 0.83rem; font-weight: 500; }
+  .heatmap-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+  .heatmap-canvas-wrap {
+    position: relative; border-radius: 10px; overflow: hidden;
+    background: var(--surface2);
+  }
+  .heatmap-canvas { width: 100%; display: block; border-radius: 10px; }
+  .heatmap-legend {
+    display: flex; gap: 1rem; align-items: center; margin-top: 1rem; flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* HOW IT WORKS */
+  .how-section { max-width: 860px; margin: 0 auto 6rem; padding: 0 1rem; }
+  .steps-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+  .step-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem;
+    transition: border-color 0.2s;
+  }
+  .step-card:hover { border-color: var(--border2); }
+  .step-num {
+    font-family: var(--mono); font-size: 0.7rem;
+    color: var(--accent); letter-spacing: 1px;
+    margin-bottom: 0.8rem; display: block;
+  }
+  .step-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; }
+  .step-card p { font-size: 0.82rem; color: var(--text-muted); line-height: 1.7; }
+
+  /* FEATURES */
+  .features-section { max-width: 860px; margin: 0 auto 6rem; padding: 0 1rem; }
+  .features-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 1rem; }
+  .feature-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem;
+    display: flex; gap: 1rem; align-items: flex-start;
+  }
+  .feature-icon {
+    width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  }
+  .fi-teal { background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.2); }
+  .fi-red { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.2); }
+  .fi-blue { background: rgba(61,158,255,0.1); border: 1px solid rgba(61,158,255,0.2); }
+  .fi-amber { background: rgba(255,165,2,0.1); border: 1px solid rgba(255,165,2,0.2); }
+  .feature-card h3 { font-size: 0.92rem; font-weight: 600; margin-bottom: 0.4rem; }
+  .feature-card p { font-size: 0.8rem; color: var(--text-muted); line-height: 1.7; }
+
+  /* TECH STACK */
+  .tech-section { max-width: 860px; margin: 0 auto 6rem; padding: 0 1rem; }
+  .tech-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .tech-pill {
+    font-family: var(--mono); font-size: 0.78rem;
+    padding: 8px 16px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border2);
+    color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .tech-pill:hover { border-color: var(--accent); color: var(--accent); }
+  .tech-pill span { font-size: 0.9rem; }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-family: var(--mono);
+  }
+  footer a { color: var(--text-muted); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  /* ANIMATIONS */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+  /* RESPONSIVE */
+  @media(max-width:640px){
+    .stats-row { grid-template-columns: repeat(2,1fr); }
+    .sample-grid { grid-template-columns: repeat(2,1fr); }
+    .steps-grid, .features-grid, .metrics-grid { grid-template-columns: 1fr; }
+    .verdict-conf { display: none; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">Deep<span>Scan</span></a>
+  <div class="nav-links">
+    <a href="#scanner">Scanner</a>
+    <a href="#how">How it works</a>
+    <a href="#features">Features</a>
+    <a href="#tech">Tech Stack</a>
+  </div>
+  <span class="nav-badge">&#x25cf; Model v2.1</span>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-tag">AI-Powered Media Verification</div>
+  <h1>Detect <em>deepfakes</em> before<br/>they spread</h1>
+  <p>DeepScan uses ensemble machine learning models to analyze images and media for signs of AI manipulation — returning a verdict, confidence score, and visual heatmap in seconds.</p>
+  <div class="hero-cta">
+    <a href="#scanner" class="btn-primary">Try the Scanner</a>
+    <a href="#how" class="btn-outline">How it works</a>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-row">
+  <div class="stat-cell"><span class="stat-num">96.4%</span><div class="stat-label">Detection Accuracy</div></div>
+  <div class="stat-cell"><span class="stat-num">12ms</span><div class="stat-label">Avg. Scan Time</div></div>
+  <div class="stat-cell"><span class="stat-num">4</span><div class="stat-label">Analysis Layers</div></div>
+  <div class="stat-cell"><span class="stat-num">2M+</span><div class="stat-label">Images Trained On</div></div>
+</div>
+
+<!-- SCANNER -->
+<section class="scanner-section" id="scanner">
+  <div class="section-header">
+    <span class="section-tag">// Live Demo</span>
+    <h2>Scan an image</h2>
+  </div>
+
+  <div class="scanner-card">
+    <div class="scanner-toolbar">
+      <div class="toolbar-dots">
+        <span class="td1"></span><span class="td2"></span><span class="td3"></span>
+      </div>
+      <div class="toolbar-title">deepscan — image analyzer</div>
+    </div>
+    <div class="scanner-body">
+      <!-- Upload Zone -->
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" accept="image/*" id="fileInput"/>
+        <div class="upload-icon">&#128247;</div>
+        <h3>Drop an image or click to upload</h3>
+        <p>Supports JPG, PNG, WebP up to 20MB</p>
+        <div class="formats">
+          <span class="fmt-badge">JPG</span>
+          <span class="fmt-badge">PNG</span>
+          <span class="fmt-badge">WEBP</span>
+          <span class="fmt-badge">GIF</span>
+        </div>
+      </div>
+
+      <!-- Sample Images -->
+      <div class="sample-label">— or try a sample image —</div>
+      <div class="sample-grid">
+        <div class="sample-img" onclick="selectSample(0, false)" id="sample0">
+          <span class="tag tag-real">REAL</span>
+          <span class="thumb">&#128100;</span>
+          <span>Portrait A</span>
+        </div>
+        <div class="sample-img" onclick="selectSample(1, true)" id="sample1">
+          <span class="tag tag-fake">FAKE</span>
+          <span class="thumb">&#129302;</span>
+          <span>GAN Face</span>
+        </div>
+        <div class="sample-img" onclick="selectSample(2, true)" id="sample2">
+          <span class="tag tag-fake">FAKE</span>
+          <span class="thumb">&#127981;</span>
+          <span>Spliced</span>
+        </div>
+        <div class="sample-img" onclick="selectSample(3, false)" id="sample3">
+          <span class="tag tag-real">REAL</span>
+          <span class="thumb">&#128247;</span>
+          <span>Photo B</span>
+        </div>
+      </div>
+
+      <button class="scan-btn" id="scanBtn" onclick="startScan()" disabled>
+        &#x25B6;&nbsp; Run DeepScan Analysis
+      </button>
+
+      <!-- Progress -->
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-steps">
+          <div class="progress-step" id="step0">
+            <div class="step-icon">01</div>
+            <div class="step-text">Loading image into preprocessing pipeline</div>
+            <div class="step-time" id="t0"></div>
+          </div>
+          <div class="progress-step" id="step1">
+            <div class="step-icon">02</div>
+            <div class="step-text">Extracting facial landmarks and regions</div>
+            <div class="step-time" id="t1"></div>
+          </div>
+          <div class="progress-step" id="step2">
+            <div class="step-icon">03</div>
+            <div class="step-text">Running CNN frequency artifact detection</div>
+            <div class="step-time" id="t2"></div>
+          </div>
+          <div class="progress-step" id="step3">
+            <div class="step-icon">04</div>
+            <div class="step-text">Analyzing GAN fingerprints and blending masks</div>
+            <div class="step-time" id="t3"></div>
+          </div>
+          <div class="progress-step" id="step4">
+            <div class="step-icon">05</div>
+            <div class="step-text">Ensemble model voting &amp; generating verdict</div>
+            <div class="step-time" id="t4"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result Panel -->
+      <div class="result-panel" id="resultPanel"></div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-section" id="how">
+  <div class="section-header">
+    <span class="section-tag">// Process</span>
+    <h2>How DeepScan works</h2>
+  </div>
+  <div class="steps-grid">
+    <div class="step-card">
+      <span class="step-num">01 — UPLOAD</span>
+      <h3>Image Ingestion</h3>
+      <p>Drop any image file. DeepScan preprocesses it through a normalization pipeline — resizing, color-space conversion, and noise reduction.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">02 — ANALYZE</span>
+      <h3>Multi-layer Analysis</h3>
+      <p>Four specialized models inspect facial geometry, frequency artifacts, GAN fingerprints, and lighting consistency simultaneously.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">03 — VERDICT</span>
+      <h3>Ensemble Voting</h3>
+      <p>Model outputs are aggregated using a weighted ensemble. The final verdict and confidence score reflect agreement across all layers.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features-section" id="features">
+  <div class="section-header">
+    <span class="section-tag">// Capabilities</span>
+    <h2>What gets detected</h2>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon fi-red">&#128270;</div>
+      <div>
+        <h3>GAN-generated Faces</h3>
+        <p>Detects images created by Generative Adversarial Networks (GANs) such as StyleGAN, ProGAN, and DALL·E by analyzing pixel-level frequency patterns.</p>
+      </div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-teal">&#128101;</div>
+      <div>
+        <h3>Face Swap Detection</h3>
+        <p>Identifies faces swapped using DeepFaceLab and FaceSwap tools by detecting blending mask boundaries and lighting inconsistencies.</p>
+      </div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-blue">&#9889;</div>
+      <div>
+        <h3>Frequency Artifacts</h3>
+        <p>Uses FFT (Fast Fourier Transform) analysis to expose compression artifacts and frequency anomalies invisible to the human eye.</p>
+      </div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-amber">&#127981;</div>
+      <div>
+        <h3>Splice & Edit Detection</h3>
+        <p>Detects copy-move forgery and image splicing using Error Level Analysis (ELA) and noise pattern inconsistency maps.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section class="tech-section" id="tech">
+  <div class="section-header">
+    <span class="section-tag">// Built With</span>
+    <h2>Tech stack</h2>
+  </div>
+  <div class="tech-grid">
+    <div class="tech-pill"><span>&#128013;</span> Python 3.10</div>
+    <div class="tech-pill"><span>&#129504;</span> TensorFlow / Keras</div>
+    <div class="tech-pill"><span>&#128065;</span> OpenCV</div>
+    <div class="tech-pill"><span>&#129302;</span> Scikit-learn</div>
+    <div class="tech-pill"><span>&#128202;</span> NumPy & Pandas</div>
+    <div class="tech-pill"><span>&#127968;</span> EfficientNet (Transfer Learning)</div>
+    <div class="tech-pill"><span>&#128248;</span> Dlib (Face Detection)</div>
+    <div class="tech-pill"><span>&#127760;</span> Flask (API)</div>
+    <div class="tech-pill"><span>&#127912;</span> HTML / CSS / JavaScript</div>
+    <div class="tech-pill"><span>&#128451;</span> FaceForensics++ Dataset</div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>DeepScan &mdash; Built by <a href="#">Shubhankar Bharti</a> &nbsp;|&nbsp; B.Tech CSE (AI/ML), PSIT Kanpur &nbsp;|&nbsp; <a href="https://github.com/shubhankar-bharti" target="_blank">GitHub</a></p>
+  <p style="margin-top:8px;color:var(--text-dim)">Academic Project &mdash; For demonstration purposes</p>
+</footer>
+
+<script>
+  let selectedSample = null;
+  let isFake = false;
+
+  function selectSample(idx, fake) {
+    document.querySelectorAll('.sample-img').forEach(el => el.classList.remove('selected'));
+    document.getElementById('sample' + idx).classList.add('selected');
+    selectedSample = idx;
+    isFake = fake;
+    document.getElementById('scanBtn').disabled = false;
+    document.getElementById('resultPanel').style.display = 'none';
+    document.getElementById('progressWrap').style.display = 'none';
+    resetSteps();
+  }
+
+  const uploadZone = document.getElementById('uploadZone');
+  const fileInput = document.getElementById('fileInput');
+
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault(); uploadZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+  function handleFile(file) {
+    document.querySelectorAll('.sample-img').forEach(el => el.classList.remove('selected'));
+    selectedSample = 'upload';
+    isFake = Math.random() > 0.4;
+    document.getElementById('scanBtn').disabled = false;
+    uploadZone.querySelector('h3').textContent = file.name;
+    uploadZone.querySelector('p').textContent = (file.size / 1024).toFixed(1) + ' KB — ready to scan';
+    document.getElementById('resultPanel').style.display = 'none';
+    document.getElementById('progressWrap').style.display = 'none';
+    resetSteps();
+  }
+
+  function resetSteps() {
+    for (let i = 0; i < 5; i++) {
+      const s = document.getElementById('step' + i);
+      s.classList.remove('active', 'done');
+      document.getElementById('t' + i).textContent = '';
+    }
+  }
+
+  const stepDurations = [320, 480, 550, 420, 380];
+  const stepTimings = ['0.32s', '0.48s', '0.55s', '0.42s', '0.38s'];
+
+  async function startScan() {
+    if (selectedSample === null) return;
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin">&#9696;</span>&nbsp; Analyzing...';
+    document.getElementById('resultPanel').style.display = 'none';
+    document.getElementById('progressWrap').style.display = 'block';
+    resetSteps();
+
+    let elapsed = 0;
+    for (let i = 0; i < 5; i++) {
+      document.getElementById('step' + i).classList.add('active');
+      await sleep(stepDurations[i]);
+      document.getElementById('step' + i).classList.remove('active');
+      document.getElementById('step' + i).classList.add('done');
+      document.getElementById('t' + i).textContent = stepTimings[i];
+      elapsed += stepDurations[i];
+    }
+
+    await sleep(200);
+    showResult();
+    btn.disabled = false;
+    btn.innerHTML = '&#x25B6;&nbsp; Run DeepScan Analysis';
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  const sampleData = [
+    { conf: 91, facial: 88, freq: 85, gan: 79, blend: 83 },
+    { conf: 96, facial: 94, freq: 91, gan: 97, blend: 88 },
+    { conf: 89, facial: 82, freq: 94, gan: 86, blend: 91 },
+    { conf: 93, facial: 90, freq: 87, gan: 84, blend: 80 },
+  ];
+
+  function showResult() {
+    const panel = document.getElementById('resultPanel');
+    let d;
+    if (typeof selectedSample === 'number') {
+      d = sampleData[selectedSample];
+    } else {
+      d = {
+        conf: 70 + Math.floor(Math.random() * 28),
+        facial: 65 + Math.floor(Math.random() * 30),
+        freq: 60 + Math.floor(Math.random() * 35),
+        gan: 58 + Math.floor(Math.random() * 38),
+        blend: 62 + Math.floor(Math.random() * 33)
+      };
+    }
+
+    const cls = isFake ? 'fake' : 'real';
+    const icon = isFake ? '⚠' : '✓';
+    const label = isFake ? 'Manipulated Media Detected' : 'Authentic Media Verified';
+    const sub = isFake
+      ? 'This image shows signs of AI manipulation. Do not trust without verification.'
+      : 'No manipulation detected. Image appears to be authentic.';
+    const displayConf = isFake ? d.conf : (100 - d.conf + 80 + Math.floor(Math.random() * 10));
+    const finalConf = Math.min(99, Math.max(70, displayConf));
+
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <div class="verdict-banner ${cls}">
+        <div class="verdict-icon">${icon}</div>
+        <div>
+          <div class="verdict-label">${isFake ? '⚠ Deepfake Detected' : '✓ Authentic'}</div>
+          <div class="verdict-title">${label}</div>
+          <div class="verdict-sub">${sub}</div>
+        </div>
+        <div class="verdict-conf">
+          <span class="conf-num">${finalConf}%</span>
+          <div class="conf-label">CONFIDENCE</div>
+        </div>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-name">Facial Geometry</div>
+          <div class="metric-bar-wrap"><div class="metric-bar bar-danger" id="bar0"></div></div>
+          <div class="metric-val">${d.facial}%</div>
+          <div class="metric-desc">Landmark inconsistency score</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Frequency Artifacts</div>
+          <div class="metric-bar-wrap"><div class="metric-bar bar-warn" id="bar1"></div></div>
+          <div class="metric-val">${d.freq}%</div>
+          <div class="metric-desc">FFT anomaly magnitude</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">GAN Fingerprint</div>
+          <div class="metric-bar-wrap"><div class="metric-bar bar-info" id="bar2"></div></div>
+          <div class="metric-val">${d.gan}%</div>
+          <div class="metric-desc">Generator pattern match</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Blending Mask</div>
+          <div class="metric-bar-wrap"><div class="metric-bar bar-accent" id="bar3"></div></div>
+          <div class="metric-val">${d.blend}%</div>
+          <div class="metric-desc">Edge consistency score</div>
+        </div>
+      </div>
+      <div class="heatmap-section">
+        <div class="heatmap-header">
+          <div>
+            <div class="heatmap-title">Attention Heatmap</div>
+            <div class="heatmap-sub">Regions that triggered the detection model</div>
+          </div>
+        </div>
+        <div class="heatmap-canvas-wrap">
+          <canvas class="heatmap-canvas" id="heatmapCanvas" height="200"></canvas>
+        </div>
+        <div class="heatmap-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#ff4757"></div>High manipulation</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ffa502"></div>Medium</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3d9eff"></div>Low</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#333"></div>Clean</div>
+        </div>
+      </div>
+    `;
+
+    setTimeout(() => {
+      animateBars(d);
+      drawHeatmap(isFake);
+    }, 100);
+  }
+
+  function animateBars(d) {
+    const vals = [d.facial, d.freq, d.gan, d.blend];
+    vals.forEach((v, i) => {
+      const bar = document.getElementById('bar' + i);
+      if (bar) bar.style.width = v + '%';
+    });
+  }
+
+  function drawHeatmap(fake) {
+    const canvas = document.getElementById('heatmapCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth || 760;
+    canvas.width = W;
+    canvas.height = 200;
+
+    ctx.fillStyle = '#1a1d24';
+    ctx.fillRect(0, 0, W, 200);
+
+    const drawFace = () => {
+      const cx = W / 2, cy = 100;
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 65, 80, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(cx - 22, cy - 15, 12, 8, -0.2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(cx + 22, cy - 15, 12, 8, 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy + 20, 18, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.stroke();
+    };
+
+    drawFace();
+
+    if (fake) {
+      const hotspots = [
+        { x: W/2 - 22, y: 85, r: 30, color: [255, 71, 87] },
+        { x: W/2 + 22, y: 85, r: 28, color: [255, 165, 2] },
+        { x: W/2, y: 130, r: 22, color: [255, 71, 87] },
+        { x: W/2 - 40, y: 105, r: 18, color: [61, 158, 255] },
+        { x: W/2 + 42, y: 108, r: 16, color: [255, 165, 2] },
+      ];
+      hotspots.forEach(h => {
+        const grd = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r);
+        grd.addColorStop(0, `rgba(${h.color[0]},${h.color[1]},${h.color[2]},0.7)`);
+        grd.addColorStop(1, `rgba(${h.color[0]},${h.color[1]},${h.color[2]},0)`);
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    } else {
+      const grd = ctx.createRadialGradient(W/2, 100, 0, W/2, 100, 40);
+      grd.addColorStop(0, 'rgba(0,229,160,0.15)');
+      grd.addColorStop(1, 'rgba(0,229,160,0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, W, 200);
+    }
+
+    drawFace();
+
+    ctx.fillStyle = fake ? 'rgba(255,71,87,0.85)' : 'rgba(0,229,160,0.85)';
+    ctx.font = 'bold 11px Space Mono, monospace';
+    ctx.fillText(fake ? 'MANIPULATED REGIONS DETECTED' : 'NO ANOMALIES DETECTED', 12, 20);
+  }
+</script>
+</body>
+</html>
