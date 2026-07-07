@@ -1,0 +1,15 @@
+torch
+torchvision
+efficientnet-pytorch
+facenet-pytorch
+opencv-python
+pillow
+numpy
+scikit-learn
+matplotlib
+flask
+werkzeug
+requests
+pytest
+scikit-image scikit-image scikit-image
+xgboost

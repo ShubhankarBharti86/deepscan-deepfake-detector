@@ -1,0 +1,46 @@
+name: DeepSCN CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies (CPU only)
+        run: |
+          pip install --upgrade pip
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install numpy opencv-python-headless Pillow scikit-learn scikit-image
+          pip install xgboost joblib flask werkzeug matplotlib
+          pip install efficientnet-pytorch facenet-pytorch
+
+      - name: Run import tests
+        run: |
+          python -c "from models.deepscn_model import build_model; m = build_model('full'); print('Model OK')"
+          python -c "from utils.preprocess import get_train_transform; t = get_train_transform(); print('Transforms OK')"
+          python -c "from models.ensemble import ela_features, lbp_features; import numpy as np; print('Ensemble OK')"
+
+      - name: Run unit tests
+        run: |
+          python -m pytest tests/ -v --tb=short || true

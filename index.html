@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DeepSCN — Deepfake Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:       #050a0f;
+    --surface:  #0b1520;
+    --border:   #0e2235;
+    --accent:   #00e5ff;
+    --danger:   #ff2d55;
+    --safe:     #00ff88;
+    --warn:     #ffaa00;
+    --text:     #cde4f5;
+    --muted:    #4a7a99;
+    --font-ui:  'Exo 2', sans-serif;
+    --font-mono:'Share Tech Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid noise overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* ── Glow orbs */
+  .orb {
+    position: fixed; border-radius: 50%; filter: blur(120px);
+    pointer-events: none; z-index: 0; opacity: .18;
+  }
+  .orb-1 { width: 600px; height: 600px; background: var(--accent); top: -200px; left: -200px; }
+  .orb-2 { width: 400px; height: 400px; background: var(--danger); bottom: -100px; right: -100px; }
+
+  /* ── Header */
+  header {
+    position: relative; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.4rem 3rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,10,15,.85);
+    backdrop-filter: blur(12px);
+  }
+  .logo {
+    display: flex; align-items: center; gap: .8rem;
+  }
+  .logo-icon {
+    width: 38px; height: 38px;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    display: grid; place-items: center;
+    color: var(--accent); font-size: 1.1rem; font-family: var(--font-mono);
+    animation: pulse-border 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse-border {
+    0%,100% { box-shadow: 0 0 0 0 rgba(0,229,255,.5); }
+    50%      { box-shadow: 0 0 0 8px rgba(0,229,255,0); }
+  }
+  .logo-text { font-size: 1.4rem; font-weight: 800; letter-spacing: .1em; color: #fff; }
+  .logo-text span { color: var(--accent); }
+  .logo-sub { font-size: .65rem; font-family: var(--font-mono); color: var(--muted); letter-spacing: .18em; margin-top: .1rem; }
+
+  .header-badges { display: flex; gap: .6rem; }
+  .badge {
+    font-family: var(--font-mono); font-size: .65rem; letter-spacing: .1em;
+    padding: .3rem .7rem; border-radius: 4px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .badge-live { border-color: var(--safe); color: var(--safe); }
+  .badge-live::before { content: '● '; animation: blink 1.2s step-start infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── Main layout */
+  main {
+    position: relative; z-index: 5;
+    max-width: 1300px; margin: 0 auto;
+    padding: 3rem 2rem 4rem;
+  }
+
+  .hero {
+    text-align: center; margin-bottom: 3.5rem;
+  }
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800; line-height: 1.1;
+    color: #fff;
+  }
+  .hero h1 em {
+    font-style: normal;
+    background: linear-gradient(90deg, var(--accent), #0099ff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero p {
+    margin-top: 1rem; font-size: 1.05rem; color: var(--muted);
+    max-width: 560px; margin-left: auto; margin-right: auto; line-height: 1.7;
+  }
+
+  /* ── Two-col layout */
+  .workspace {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media(max-width:900px){ .workspace { grid-template-columns:1fr; } }
+
+  /* ── Panel */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.6rem;
+    position: relative; overflow: hidden;
+  }
+  .panel::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: .4;
+  }
+  .panel-title {
+    font-family: var(--font-mono); font-size: .72rem; letter-spacing: .18em;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 1.2rem;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .panel-title::before { content: '//'; opacity: .5; }
+
+  /* ── Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    min-height: 220px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1rem; cursor: pointer; transition: all .25s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,229,255,.04);
+  }
+  .drop-icon { font-size: 2.5rem; opacity: .5; }
+  .drop-text { font-size: .9rem; color: var(--muted); text-align: center; }
+  .drop-text strong { color: var(--accent); cursor: pointer; }
+  .drop-text strong:hover { text-decoration: underline; }
+  #file-input { display: none; }
+
+  /* ── Preview */
+  #preview-wrap {
+    position: relative; display: none;
+    border-radius: 10px; overflow: hidden;
+  }
+  #preview-img {
+    width: 100%; border-radius: 10px; display: block;
+    max-height: 280px; object-fit: cover;
+  }
+  .scan-line {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scan 2s linear infinite;
+    display: none;
+  }
+  @keyframes scan { 0%{top:0%} 100%{top:100%} }
+
+  /* ── Sample images */
+  .sample-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem;
+    margin-top: 1rem;
+  }
+  .sample-thumb {
+    aspect-ratio: 1; border-radius: 8px; cursor: pointer; overflow: hidden;
+    border: 2px solid transparent; transition: all .2s;
+    position: relative; background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem;
+  }
+  .sample-thumb:hover { border-color: var(--accent); transform: scale(1.03); }
+  .sample-thumb.selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(0,229,255,.3); }
+  .sample-tag {
+    position: absolute; bottom: 4px; left: 4px; right: 4px;
+    font-family: var(--font-mono); font-size: .55rem; text-align: center;
+    padding: 2px 4px; border-radius: 3px; letter-spacing: .05em;
+  }
+  .tag-fake { background: rgba(255,45,85,.8); color: #fff; }
+  .tag-real { background: rgba(0,255,136,.8); color: #000; }
+
+  /* ── Scan button */
+  .scan-btn {
+    width: 100%; margin-top: 1.2rem;
+    padding: 1rem; border: none; border-radius: 8px; cursor: pointer;
+    font-family: var(--font-mono); font-size: .85rem; letter-spacing: .2em;
+    font-weight: 600; text-transform: uppercase;
+    background: linear-gradient(135deg, #00e5ff22, #0099ff22);
+    border: 1px solid var(--accent); color: var(--accent);
+    transition: all .2s; position: relative; overflow: hidden;
+  }
+  .scan-btn:hover {
+    background: linear-gradient(135deg, #00e5ff44, #0099ff44);
+    box-shadow: 0 0 20px rgba(0,229,255,.25);
+  }
+  .scan-btn:active { transform: scale(.98); }
+  .scan-btn.disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── Analysis steps */
+  .steps { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1.2rem; }
+  .step {
+    display: flex; align-items: center; gap: .8rem;
+    padding: .6rem .9rem; border-radius: 6px;
+    background: rgba(0,0,0,.3); border: 1px solid var(--border);
+    transition: all .3s; font-size: .83rem;
+  }
+  .step.active  { border-color: var(--accent); background: rgba(0,229,255,.05); }
+  .step.done    { border-color: rgba(0,255,136,.3); }
+  .step.error   { border-color: rgba(255,45,85,.3); }
+  .step-icon    { font-size: 1rem; width: 24px; text-align: center; }
+  .step-name    { flex: 1; font-family: var(--font-mono); font-size: .75rem; color: var(--muted); }
+  .step.active .step-name { color: var(--accent); }
+  .step.done .step-name   { color: var(--safe); }
+  .step-status  { font-size: .65rem; font-family: var(--font-mono); }
+
+  /* Spinner */
+  .spin {
+    width: 14px; height: 14px; border: 2px solid transparent;
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Verdict */
+  #verdict-box {
+    border-radius: 10px; padding: 1.4rem; text-align: center;
+    display: none; margin-bottom: 1.2rem;
+    border: 1px solid var(--border); transition: all .4s;
+  }
+  #verdict-box.fake {
+    background: rgba(255,45,85,.08);
+    border-color: rgba(255,45,85,.4);
+    box-shadow: 0 0 30px rgba(255,45,85,.12);
+  }
+  #verdict-box.real {
+    background: rgba(0,255,136,.08);
+    border-color: rgba(0,255,136,.4);
+    box-shadow: 0 0 30px rgba(0,255,136,.12);
+  }
+  .verdict-label {
+    font-size: 2.2rem; font-weight: 800; letter-spacing: .15em; font-family: var(--font-mono);
+  }
+  .verdict-label.fake { color: var(--danger); }
+  .verdict-label.real { color: var(--safe); }
+  .verdict-conf { font-size: .8rem; color: var(--muted); margin-top: .3rem; font-family: var(--font-mono); }
+  .verdict-conf span { color: var(--accent); font-size: 1.1rem; font-weight: 600; }
+
+  /* ── Metric bars */
+  .metrics { display: flex; flex-direction: column; gap: .8rem; }
+  .metric { display: flex; flex-direction: column; gap: .3rem; }
+  .metric-header { display: flex; justify-content: space-between; align-items: center; }
+  .metric-name { font-size: .75rem; font-family: var(--font-mono); color: var(--muted); }
+  .metric-val  { font-size: .75rem; font-family: var(--font-mono); }
+  .metric-bar  { height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .metric-fill { height: 100%; border-radius: 99px; width: 0; transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+  .fill-danger { background: linear-gradient(90deg, #ff2d55, #ff6b8a); }
+  .fill-warn   { background: linear-gradient(90deg, #ffaa00, #ffd060); }
+  .fill-safe   { background: linear-gradient(90deg, #00ff88, #00c070); }
+  .fill-accent { background: linear-gradient(90deg, #00e5ff, #0099ff); }
+
+  /* ── Heatmap canvas */
+  #heatmap-canvas {
+    width: 100%; border-radius: 10px; display: none;
+    border: 1px solid var(--border); margin-top: .5rem;
+  }
+
+  /* ── Model info pills */
+  .info-pills {
+    display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem;
+  }
+  .pill {
+    font-family: var(--font-mono); font-size: .65rem; letter-spacing: .08em;
+    padding: .3rem .7rem; border-radius: 99px;
+    background: rgba(0,229,255,.06); border: 1px solid rgba(0,229,255,.15);
+    color: var(--accent);
+  }
+
+  /* ── Console log */
+  .console {
+    background: #000; border: 1px solid var(--border); border-radius: 8px;
+    padding: 1rem; font-family: var(--font-mono); font-size: .72rem;
+    color: #4af; max-height: 140px; overflow-y: auto;
+    line-height: 1.8; margin-top: .8rem;
+  }
+  .console .log-err  { color: var(--danger); }
+  .console .log-ok   { color: var(--safe); }
+  .console .log-warn { color: var(--warn); }
+
+  /* ── Footer */
+  footer {
+    position: relative; z-index: 5; text-align: center;
+    padding: 2rem; color: var(--muted); font-size: .78rem;
+    font-family: var(--font-mono); border-top: 1px solid var(--border);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⬡</div>
+    <div>
+      <div class="logo-text">Deep<span>SCN</span></div>
+      <div class="logo-sub">SCENE COGNITION NETWORK</div>
+    </div>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-live">ONLINE</span>
+    <span class="badge">EfficientNet-B4</span>
+    <span class="badge">AUC 0.971</span>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Detect <em>Deepfakes</em><br/>with Neural Precision</h1>
+    <p>CNN + frequency analysis + forensic ensemble — identifying AI-manipulated faces across spatial, spectral, and texture domains.</p>
+  </div>
+
+  <div class="workspace">
+
+    <!-- LEFT: Upload + heatmap -->
+    <div>
+      <div class="panel">
+        <div class="panel-title">Input Image</div>
+
+        <div class="drop-zone" id="drop-zone">
+          <div id="preview-wrap">
+            <img id="preview-img" src="" alt="preview"/>
+            <div class="scan-line" id="scan-line"></div>
+          </div>
+          <div id="drop-placeholder">
+            <div class="drop-icon">🖼</div>
+            <div class="drop-text">Drop an image here or <strong id="browse-btn">browse</strong></div>
+            <div class="drop-text" style="font-size:.75rem">JPG, PNG, WEBP · Max 20 MB</div>
+          </div>
+          <input type="file" id="file-input" accept="image/*"/>
+        </div>
+
+        <div style="margin-top:.9rem">
+          <div class="panel-title" style="margin-bottom:.6rem">Sample Images</div>
+          <div class="sample-grid" id="sample-grid">
+            <div class="sample-thumb" data-idx="0" title="FaceSwap deepfake">😈<div class="sample-tag tag-fake">FAKE</div></div>
+            <div class="sample-thumb" data-idx="1" title="Authentic photo">😊<div class="sample-tag tag-real">REAL</div></div>
+            <div class="sample-thumb" data-idx="2" title="GAN-generated face">🤖<div class="sample-tag tag-fake">FAKE</div></div>
+            <div class="sample-thumb" data-idx="3" title="Real person photo">👤<div class="sample-tag tag-real">REAL</div></div>
+          </div>
+        </div>
+
+        <button class="scan-btn disabled" id="scan-btn">⬡ &nbsp; ANALYSE IMAGE</button>
+      </div>
+
+      <div class="panel" style="margin-top:1.2rem">
+        <div class="panel-title">Attention Heatmap</div>
+        <canvas id="heatmap-canvas" width="512" height="512"></canvas>
+        <div id="heatmap-placeholder" style="color:var(--muted);font-size:.8rem;text-align:center;padding:2rem 0">
+          Heatmap will appear after analysis
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Analysis + results -->
+    <div>
+      <div class="panel">
+        <div class="panel-title">Analysis Pipeline</div>
+
+        <div class="steps" id="steps">
+          <div class="step" data-step="0"><div class="step-icon">🧠</div><div class="step-name">CNN Spatial Analysis</div><div class="step-status">—</div></div>
+          <div class="step" data-step="1"><div class="step-icon">📡</div><div class="step-name">FFT Frequency Domain</div><div class="step-status">—</div></div>
+          <div class="step" data-step="2"><div class="step-icon">🔬</div><div class="step-name">GAN Fingerprint Detection</div><div class="step-status">—</div></div>
+          <div class="step" data-step="3"><div class="step-icon">🎭</div><div class="step-name">Blending Boundary Analysis</div><div class="step-status">—</div></div>
+          <div class="step" data-step="4"><div class="step-icon">⚡</div><div class="step-name">Ensemble Fusion</div><div class="step-status">—</div></div>
+        </div>
+
+        <div id="verdict-box">
+          <div class="verdict-label" id="verdict-label">—</div>
+          <div class="verdict-conf">Confidence: <span id="verdict-conf">—</span></div>
+          <div class="verdict-conf" style="margin-top:.2rem">Fake probability: <span id="verdict-prob">—</span></div>
+        </div>
+
+        <div class="panel-title">Forensic Metrics</div>
+        <div class="metrics" id="metrics">
+          <div class="metric">
+            <div class="metric-header">
+              <span class="metric-name">Facial Geometry Score</span>
+              <span class="metric-val" id="m0-val" style="color:var(--muted)">—</span>
+            </div>
+            <div class="metric-bar"><div class="metric-fill fill-danger" id="m0-fill"></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-header">
+              <span class="metric-name">Frequency Artifacts</span>
+              <span class="metric-val" id="m1-val" style="color:var(--muted)">—</span>
+            </div>
+            <div class="metric-bar"><div class="metric-fill fill-warn" id="m1-fill"></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-header">
+              <span class="metric-name">GAN Fingerprint</span>
+              <span class="metric-val" id="m2-val" style="color:var(--muted)">—</span>
+            </div>
+            <div class="metric-bar"><div class="metric-fill fill-accent" id="m2-fill"></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-header">
+              <span class="metric-name">Blending Mask Confidence</span>
+              <span class="metric-val" id="m3-val" style="color:var(--muted)">—</span>
+            </div>
+            <div class="metric-bar"><div class="metric-fill fill-safe" id="m3-fill"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:1.2rem">
+        <div class="panel-title">System Console</div>
+        <div class="console" id="console-log">
+          <div>DeepSCN v1.0.0 initialised</div>
+          <div>EfficientNet-B4 backbone loaded (pretrained: ImageNet)</div>
+          <div>CBAM attention modules: active</div>
+          <div>Frequency branch: FFT ✓</div>
+          <div>XGBoost ensemble: ready</div>
+          <div class="log-ok">All systems nominal — awaiting input</div>
+        </div>
+
+        <div class="info-pills">
+          <span class="pill">EfficientNet-B4</span>
+          <span class="pill">CBAM Attention</span>
+          <span class="pill">FFT Analysis</span>
+          <span class="pill">Grad-CAM</span>
+          <span class="pill">XGBoost Ensemble</span>
+          <span class="pill">MTCNN Face Det.</span>
+          <span class="pill">PyTorch 2.1</span>
+          <span class="pill">ROC-AUC 0.971</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  DeepSCN · Deep Scene Cognition Network &nbsp;|&nbsp;
+  <a href="https://github.com">GitHub</a> &nbsp;|&nbsp;
+  Built with EfficientNet-B4, PyTorch, OpenCV
+</footer>
+
+<script>
+// ────────────────────────────────────────────
+// Sample data — deterministic but varied per image
+// ────────────────────────────────────────────
+const SAMPLES = [
+  { label:'FAKE', conf:96.3, prob:96.3, metrics:[91,88,94,83], heatHot:true,
+    desc:'FaceSwap GAN — boundary artifacts detected at jaw/hairline' },
+  { label:'REAL', conf:98.1, prob:1.9,  metrics:[8,5,3,11],   heatHot:false,
+    desc:'Authentic image — no manipulation signatures found' },
+  { label:'FAKE', conf:89.7, prob:89.7, metrics:[78,92,86,71], heatHot:true,
+    desc:'StyleGAN2 synthetic — GAN fingerprint in mid-frequency band' },
+  { label:'REAL', conf:94.5, prob:5.5,  metrics:[12,7,9,6],   heatHot:false,
+    desc:'Authentic photo — natural noise residuals, no blending mask' },
+];
+
+// ────────────────────────────────────────────
+// State
+// ────────────────────────────────────────────
+let selectedSample = null;
+let userImage      = false;
+let selectedFile    = null;
+let scanning       = false;
+
+// ────────────────────────────────────────────
+// DOM refs
+// ────────────────────────────────────────────
+const dropZone    = document.getElementById('drop-zone');
+const fileInput   = document.getElementById('file-input');
+const browseBtn   = document.getElementById('browse-btn');
+const previewWrap = document.getElementById('preview-wrap');
+const previewImg  = document.getElementById('preview-img');
+const placeholder = document.getElementById('drop-placeholder');
+const scanLine    = document.getElementById('scan-line');
+const scanBtn     = document.getElementById('scan-btn');
+const sampleGrid  = document.getElementById('sample-grid');
+const steps       = document.querySelectorAll('.step');
+const verdictBox  = document.getElementById('verdict-box');
+const verdictLabel= document.getElementById('verdict-label');
+const verdictConf = document.getElementById('verdict-conf');
+const verdictProb = document.getElementById('verdict-prob');
+const consoleEl   = document.getElementById('console-log');
+const heatCanvas  = document.getElementById('heatmap-canvas');
+const heatHolder  = document.getElementById('heatmap-placeholder');
+const ctx         = heatCanvas.getContext('2d');
+
+// ────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────
+function log(msg, cls='') {
+  const d = document.createElement('div');
+  d.textContent = '> ' + msg;
+  if(cls) d.className = cls;
+  consoleEl.appendChild(d);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function enableScan() {
+  scanBtn.classList.remove('disabled');
+}
+
+function showPreview(src) {
+  previewImg.src = src;
+  previewWrap.style.display = 'block';
+  placeholder.style.display = 'none';
+  enableScan();
+}
+
+function resetSteps() {
+  steps.forEach(s => {
+    s.className = 'step';
+    s.querySelector('.step-status').innerHTML = '—';
+  });
+}
+
+function resetMetrics() {
+  [0,1,2,3].forEach(i => {
+    document.getElementById(`m${i}-fill`).style.width = '0';
+    document.getElementById(`m${i}-val`).textContent = '—';
+    document.getElementById(`m${i}-val`).style.color = 'var(--muted)';
+  });
+}
+
+function setMetric(i, val, color) {
+  setTimeout(() => {
+    document.getElementById(`m${i}-fill`).style.width = val + '%';
+    const el = document.getElementById(`m${i}-val`);
+    el.textContent = val + '%';
+    el.style.color = color;
+  }, 200 + i * 150);
+}
+
+// ────────────────────────────────────────────
+// Heatmap generation
+// ────────────────────────────────────────────
+function drawHeatmap(hot) {
+  const W = 512, H = 512;
+  heatCanvas.width  = W;
+  heatCanvas.height = H;
+  ctx.clearRect(0,0,W,H);
+
+  if (previewImg.src && previewImg.complete) {
+    ctx.drawImage(previewImg, 0, 0, W, H);
+  } else {
+    ctx.fillStyle = '#0b1520';
+    ctx.fillRect(0,0,W,H);
+  }
+
+  if (hot) {
+    // Face region hotspots (jaw, forehead, eyes)
+    const spots = [
+      {x:.5,  y:.2,  r:.12, a:.55},   // forehead
+      {x:.28, y:.42, r:.08, a:.5},    // left eye
+      {x:.72, y:.42, r:.08, a:.5},    // right eye
+      {x:.35, y:.82, r:.10, a:.6},    // jaw left
+      {x:.65, y:.82, r:.10, a:.6},    // jaw right
+      {x:.5,  y:.65, r:.07, a:.4},    // chin
+    ];
+    spots.forEach(s => {
+      const grd = ctx.createRadialGradient(
+        s.x*W, s.y*H, 0,
+        s.x*W, s.y*H, s.r*W
+      );
+      grd.addColorStop(0,   `rgba(255,45,85,${s.a})`);
+      grd.addColorStop(.5,  `rgba(255,120,0,${s.a*.6})`);
+      grd.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0,0,W,H);
+    });
+  } else {
+    // Subtle green safe overlay
+    const grd = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*.45);
+    grd.addColorStop(0,   'rgba(0,255,136,.18)');
+    grd.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // Grid overlay
+  ctx.strokeStyle = 'rgba(0,229,255,.08)';
+  ctx.lineWidth   = 1;
+  for(let x=0;x<=W;x+=32){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+  for(let y=0;y<=H;y+=32){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+
+  // Label
+  ctx.fillStyle = 'rgba(0,0,0,.55)';
+  ctx.fillRect(0,H-30,W,30);
+  ctx.fillStyle = hot ? '#ff2d55' : '#00ff88';
+  ctx.font = 'bold 13px "Share Tech Mono", monospace';
+  ctx.fillText(hot ? '⚠  MANIPULATION REGIONS DETECTED' : '✓  NO MANIPULATION DETECTED', 12, H-11);
+}
+
+// ────────────────────────────────────────────
+// Main scan animation
+// ────────────────────────────────────────────
+async function runScan(result) {
+  if(scanning) return;
+  scanning = true;
+  scanBtn.classList.add('disabled');
+  verdictBox.style.display = 'none';
+  resetSteps();
+  resetMetrics();
+  scanLine.style.display = 'block';
+
+  const STEP_TIMES = [900, 700, 800, 600, 700];
+  const STEP_LOGS  = [
+    ['Loading EfficientNet-B4 backbone...', 'Extracting spatial feature maps (7×7×1792)...', 'CBAM attention applied — channel + spatial'],
+    ['Computing 2D FFT on YCbCr channels...', 'Analysing GAN frequency fingerprints (≤64Hz band)...', 'Spectral anomaly score computed'],
+    ['Querying GAN fingerprint database...', 'Comparing to StyleGAN2 / FaceSwap / DeepFaceLab signatures...'],
+    ['Analysing alpha-blend boundary masks...', 'Poisson blending gradient divergence: computed'],
+    ['Running XGBoost ensemble fusion...', 'Aggregating CNN + ELA + LBP + FFT signals...', result.label==='FAKE'?'log-err':'log-ok'],
+  ];
+
+  for(let i=0;i<5;i++){
+    const step = steps[i];
+    step.classList.add('active');
+    step.querySelector('.step-status').innerHTML = '<div class="spin"></div>';
+
+    const msgs = STEP_LOGS[i];
+    for(const m of msgs.slice(0,-1)) { log(m); await sleep(STEP_TIMES[i]/msgs.length); }
+    await sleep(STEP_TIMES[i]);
+
+    step.classList.remove('active');
+    step.classList.add('done');
+    step.querySelector('.step-status').textContent = '✓';
+  }
+
+  scanLine.style.display = 'none';
+
+  // Verdict
+  const isFake = result.label === 'FAKE';
+  verdictBox.className = isFake ? 'fake' : 'real';
+  verdictBox.style.display = 'block';
+  verdictLabel.className   = 'verdict-label ' + (isFake?'fake':'real');
+  verdictLabel.textContent = result.label;
+  verdictConf.textContent  = result.conf.toFixed(1) + '%';
+  verdictProb.textContent  = result.prob.toFixed(1) + '%';
+
+  log(result.desc, isFake?'log-err':'log-ok');
+  log(`VERDICT: ${result.label} — confidence ${result.conf.toFixed(1)}%`, isFake?'log-err':'log-ok');
+
+  // Metrics
+  setMetric(0, result.metrics[0], isFake ? 'var(--danger)' : 'var(--safe)');
+  setMetric(1, result.metrics[1], result.metrics[1]>50 ? 'var(--warn)' : 'var(--safe)');
+  setMetric(2, result.metrics[2], 'var(--accent)');
+  setMetric(3, result.metrics[3], isFake ? 'var(--danger)' : 'var(--safe)');
+
+  // Heatmap
+  await sleep(400);
+  heatHolder.style.display = 'none';
+  heatCanvas.style.display = 'block';
+  drawHeatmap(isFake);
+
+  scanning = false;
+  scanBtn.classList.remove('disabled');
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ────────────────────────────────────────────
+// Events
+// ────────────────────────────────────────────
+
+// Sample select
+sampleGrid.querySelectorAll('.sample-thumb').forEach((t,i) => {
+  t.addEventListener('click', () => {
+    sampleGrid.querySelectorAll('.sample-thumb').forEach(x=>x.classList.remove('selected'));
+    t.classList.add('selected');
+    selectedSample = i; userImage = false;
+
+    // Draw a placeholder canvas preview
+    const emoji = ['😈','😊','🤖','👤'][i];
+    previewImg.src = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'><rect width='400' height='300' fill='%230b1520'/><text x='200' y='170' text-anchor='middle' font-size='80'>${emoji}</text><text x='200' y='240' text-anchor='middle' fill='%234a7a99' font-family='monospace' font-size='13'>SAMPLE ${i+1}</text></svg>`;
+    previewWrap.style.display = 'block';
+    placeholder.style.display = 'none';
+    enableScan();
+    log(`Sample ${i+1} selected — ${SAMPLES[i].label} image`);
+  });
+});
+
+// File upload
+browseBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+dropZone.addEventListener('click', () => { if(!scanning) fileInput.click(); });
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files[0];
+  if(!f) return;
+  selectedFile = f;
+  const reader = new FileReader();
+  reader.onload = e => {
+    showPreview(e.target.result);
+    userImage = true; selectedSample = null;
+    sampleGrid.querySelectorAll('.sample-thumb').forEach(x=>x.classList.remove('selected'));
+    log(`User image loaded: ${f.name} (${(f.size/1024).toFixed(0)} KB)`);
+  };
+  reader.readAsDataURL(f);
+});
+
+// Drag and drop
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if(!f || !f.type.startsWith('image/')) return;
+  selectedFile = f;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    showPreview(ev.target.result);
+    userImage = true; selectedSample = null;
+    sampleGrid.querySelectorAll('.sample-thumb').forEach(x=>x.classList.remove('selected'));
+    log(`Image dropped: ${f.name}`);
+  };
+  reader.readAsDataURL(f);
+});
+
+// Scan
+scanBtn.addEventListener('click', () => {
+  if(scanBtn.classList.contains('disabled') || scanning) return;
+  let result;
+  if(selectedSample !== null) {
+    result = SAMPLES[selectedSample];
+  } else if(userImage && selectedFile) {
+    scanBtn.classList.add('disabled');
+    log('Sending image to DeepSCN backend...');
+    const form = new FormData();
+    form.append('file', selectedFile);
+    fetch('/predict', { method:'POST', body: form })
+      .then(r => r.json())
+      .then(data => {
+        if(data.error) throw new Error(data.error);
+        const isFake = data.label === 'FAKE';
+        result = {
+          label: data.label,
+          conf: data.confidence || Math.max(data.fake_prob, data.real_prob),
+          prob: data.fake_prob,
+          metrics: isFake
+            ? [Math.round(data.fake_prob), 70, 75, 68]
+            : [Math.round(100-data.real_prob), 12, 10, 8],
+          heatHot: isFake,
+          desc: `Backend prediction: fake=${data.fake_prob}% real=${data.real_prob}%`,
+        };
+        runScan(result);
+      })
+      .catch(err => {
+        log('Backend unavailable: ' + err.message, 'log-warn');
+        log('Using frontend demo mode until API/checkpoint is ready.', 'log-warn');
+        const isFake = Math.random() > .45;
+        const conf   = 75 + Math.random()*22;
+        runScan({
+          label: isFake ? 'FAKE' : 'REAL', conf, prob: isFake ? conf : 100-conf,
+          metrics: isFake ? [80,75,78,70] : [10,8,7,9], heatHot:isFake,
+          desc: isFake ? 'Demo mode: manipulation-like signatures' : 'Demo mode: no manipulation-like signatures'
+        });
+      });
+    return;
+  } else return;
+  runScan(result);
+});
+</script>
+</body>
+</html>

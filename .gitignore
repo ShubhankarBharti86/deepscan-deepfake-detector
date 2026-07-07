@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Trained Models
+checkpoints/*.pth
+checkpoints/*.pt
+*.pkl
+*.h5
+
+# Keep useful training history
+!checkpoints/history.json
+
+# Dataset
+data/
+!data/README.md
+
+# Outputs
+eval_outputs/
+gradcam_outputs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

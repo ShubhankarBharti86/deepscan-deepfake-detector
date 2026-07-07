@@ -1,0 +1,7 @@
+services:
+  deepscn:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./checkpoints:/app/checkpoints
